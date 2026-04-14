@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#09090b">
+<title>Money Map</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{--a:#67b8d4;--al:#89ccde;--ad:#3a8fa8;--ag:rgba(103,184,212,.15);--red:#ef4444;--yel:#f59e0b;--grn:#22c55e;--org:#f97316;--bg:#09090b;--cd:#141417;--cb:#27272a;--tx:#fafafa;--td:#a1a1aa;--tm:#71717a}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg);color:var(--tx);font-family:'Space Grotesk',sans-serif;min-height:100vh;-webkit-tap-highlight-color:transparent}
+.mono{font-family:'JetBrains Mono',monospace}
+.hdr{background:linear-gradient(135deg,var(--ad) 0%,#0c0c0f 50%,rgba(249,115,22,.08) 100%);padding:28px 24px 20px;border-bottom:1px solid var(--cb)}
+.tabs{display:flex;overflow-x:auto;background:var(--cd);border-bottom:1px solid var(--cb);position:sticky;top:0;z-index:10}
+.tab{flex:1;padding:12px 4px;border:none;cursor:pointer;font-family:inherit;background:transparent;border-bottom:2px solid transparent;color:var(--tm);font-size:10px;font-weight:600;display:flex;flex-direction:column;align-items:center;gap:2;white-space:nowrap}
+.tab.on{background:var(--ag);border-bottom-color:var(--org);color:var(--org)}
+.content{padding:20px 16px;max-width:600px;margin:0 auto}
+.stack{display:flex;flex-direction:column;gap:16px}
+.card{background:var(--cd);border:1px solid var(--cb);border-radius:16px;padding:20px 24px}
+.card.glow{box-shadow:0 0 30px var(--ag);border-color:var(--ad)}
+.bar-wrap{width:100%;height:8px;background:#27272a;border-radius:4px;overflow:hidden}
+.bar-fill{height:100%;border-radius:4px;transition:width .5s}
+.pill{padding:5px 12px;border-radius:16px;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap;border:1px solid var(--cb);background:transparent;color:var(--td)}
+.pill.on{background:var(--org);color:#000;border-color:var(--org)}
+.pill.on-a{background:var(--ag);color:var(--al);border-color:var(--a)}
+.row{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--cb);font-size:13px}
+.tip{margin-top:6px;padding:8px 12px;background:rgba(249,115,22,.08);border-radius:8px;font-size:12px;color:var(--org);line-height:1.5}
+.chk{width:28px;height:28px;border-radius:6px;border:1px solid var(--cb);background:rgba(255,255,255,.03);color:var(--tm);font-size:10px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;font-family:'JetBrains Mono',monospace}
+.chk.on{background:var(--grn);color:#000;border-color:var(--grn)}
+input[type=number],input[type=text]{padding:10px 14px;border-radius:10px;border:1px solid var(--cb);background:var(--bg);color:var(--tx);font-size:14px;font-family:inherit;outline:none;width:100%;box-sizing:border-box}
+input[type=number]{font-family:'JetBrains Mono',monospace;font-size:16px}
+.btn-add{padding:10px 20px;border-radius:10px;border:none;background:var(--org);color:#000;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit}
+.btn-del{width:24px;height:24px;border-radius:6px;border:1px solid var(--cb);background:transparent;color:var(--tm);font-size:14px;cursor:pointer}
+.hidden{display:none}
+.loading{display:flex;align-items:center;justify-content:center;min-height:60vh;font-size:14px;color:var(--td)}
+.sync-dot{width:8px;height:8px;border-radius:50%;display:inline-block;margin-left:8px}
+.sync-dot.ok{background:var(--grn)}.sync-dot.err{background:var(--red)}.sync-dot.load{background:var(--yel)}
+</style>
+</head>
+<body>
+<div class="hdr">
+  <div style="font-size:13px;color:var(--org);text-transform:uppercase;letter-spacing:2px;margin-bottom:4px">Neeve's Money Map</div>
+  <div style="font-size:22px;font-weight:700">Move to SC by August 31 🔥</div>
+  <div style="font-size:12px;color:var(--tm);margin-top:4px">Every dollar has a job. <span id="syncStatus"></span></div>
+</div>
+<div class="tabs" id="tabs"></div>
+<div class="content" id="content"></div>
+
+<script>
+// =====================================================
+// CONFIG - PASTE YOUR APPS SCRIPT URL BELOW
+// =====================================================
+var SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwrotZGI1jSJkc7OI2OSpYiqouxNmJ-DuI5wAED3CxfgjV7S75Pufm9nIL801OaBr8Ezg/exec";
+
+// =====================================================
+// DATA
+// =====================================================
+var loans=[
+{id:"af1",p:"Affirm",name:"Fanatics",pmt:43.68,left:8,rem:349,ends:"Dec 26",day:2},
+{id:"af2",p:"Affirm",name:"Amazon (gen)",pmt:16.94,left:5,rem:85,ends:"Sep 26",day:5},
+{id:"af3",p:"Affirm",name:"Thrash Happy (bra)",pmt:23.91,left:12,rem:287,ends:"Apr 27",day:6},
+{id:"af4",p:"Affirm",name:"Comfrt",pmt:20.50,left:6,rem:123,ends:"Oct 26",day:7},
+{id:"af5",p:"Affirm",name:"Amazon ($419)",pmt:27.77,left:17,rem:472,ends:"Sep 27",day:9},
+{id:"af6",p:"Affirm",name:"Star Market",pmt:18.81,left:7,rem:129,ends:"Nov 26",day:9},
+{id:"af7",p:"Affirm",name:"Amazon ($376)",pmt:24.88,left:4,rem:98,ends:"Aug 26",day:10},
+{id:"af8",p:"Affirm",name:"Amazon ($368)",pmt:24.37,left:11,rem:267,ends:"Mar 27",day:10},
+{id:"af9",p:"Affirm",name:"TikTok Shop",pmt:9.81,left:5,rem:49,ends:"Sep 26",day:10},
+{id:"af10",p:"Affirm",name:"Amazon ($380)",pmt:25.14,left:13,rem:325,ends:"May 27",day:14},
+{id:"af11",p:"Affirm",name:"Amazon ($232)",pmt:21.84,left:12,rem:262,ends:"Apr 27",day:11},
+{id:"af12",p:"Affirm",name:"Thrash Happy (thong)",pmt:46.23,left:3,rem:138,ends:"Jul 26",day:16},
+{id:"af13",p:"Affirm",name:"Gametime",pmt:56.63,left:9,rem:510,ends:"Jan 27",day:16},
+{id:"af14",p:"Affirm",name:"American Airlines",pmt:97.88,left:5,rem:489,ends:"Sep 26",day:17},
+{id:"af15",p:"Affirm",name:"Oilogy",pmt:21.32,left:3,rem:64,ends:"Jun 26",day:17},
+{id:"af16",p:"Affirm",name:"Amazon ($241)",pmt:22.64,left:12,rem:272,ends:"Apr 27",day:16},
+{id:"af17",p:"Affirm",name:"Amazon ($610)",pmt:31.93,left:10,rem:317,ends:"Feb 27",day:22},
+{id:"af18",p:"Affirm",name:"Amazon ($303)",pmt:20.06,left:12,rem:239,ends:"Apr 27",day:24},
+{id:"af19",p:"Affirm",name:"Amazon ($541)",pmt:50.93,left:7,rem:355,ends:"Nov 26",day:24},
+{id:"af20",p:"Affirm",name:"Thrash Happy (sweats)",pmt:23.65,left:5,rem:117,ends:"Sep 26",day:25},
+{id:"af21",p:"Affirm",name:"Amazon ($1126)",pmt:58.97,left:23,rem:1356,ends:"Mar 28",day:26},
+{id:"af22",p:"Affirm",name:"Body Raven Tracy",pmt:13.06,left:2,rem:27,ends:"Jun 26",day:27},
+{id:"af23",p:"Affirm",name:"Amazon ($464)",pmt:30.69,left:12,rem:338,ends:"Apr 27",day:28},
+{id:"af24",p:"Affirm",name:"Rodman Apparel",pmt:16.57,left:12,rem:199,ends:"Apr 27",day:30},
+{id:"af25",p:"Affirm",name:"Amazon ($302)",pmt:20.06,left:12,rem:239,ends:"Apr 27",day:20},
+{id:"af26",p:"Affirm",name:"Amazon ($240)",pmt:22.64,left:12,rem:272,ends:"Apr 27",day:12},
+{id:"kl1",p:"Klarna",name:"Hey Harper",pmt:45.28,left:10,rem:453,ends:"Feb 27",day:8},
+{id:"kl2",p:"Klarna",name:"Akira ($234)",pmt:19.53,left:4,rem:78,ends:"Aug 26",day:8},
+{id:"kl3",p:"Klarna",name:"Steve Madden",pmt:19.50,left:4,rem:78,ends:"Aug 26",day:9},
+{id:"kl4",p:"Klarna",name:"Fashion Nova",pmt:15.50,left:7,rem:109,ends:"Nov 26",day:17},
+{id:"kl5",p:"Klarna",name:"Akira ($527)",pmt:43.96,left:7,rem:308,ends:"Nov 26",day:17},
+{id:"kl6",p:"Klarna",name:"Dolls Kill",pmt:11.98,left:7,rem:84,ends:"Nov 26",day:17},
+{id:"kl7",p:"Klarna",name:"Ticketmaster+",pmt:68.77,left:10,rem:688,ends:"Feb 27",day:28},
+{id:"pp1",p:"PayPal",name:"Harper and Willow",pmt:40.08,left:5,rem:199,ends:"Sep 26",day:7},
+{id:"pp2",p:"PayPal",name:"Fashion Nova",pmt:35.62,left:9,rem:320,ends:"Jan 27",day:21},
+{id:"pp3",p:"PayPal",name:"Jersey Nings",pmt:28.00,left:3,rem:84,ends:"Jun 26",day:27},
+{id:"ap1",p:"AfterPay",name:"1-800 Contacts",pmt:21.12,left:9,rem:190,ends:"Dec 26",day:19,hasInt:true},
+{id:"gp1",p:"GreenPath",name:"PayPal Credit",pmt:147.00,left:37,rem:5456,ends:"~2029",day:23,hasInt:true}
+];
+
+var budgetItems=[
+{cat:"🏠 Housing + Utilities",amt:1398,detail:"Rent $1,253 + utilities $110 + ins $35",type:"fixed"},
+{cat:"💳 BNPL Payments",amt:1372,detail:"Affirm $862 + Klarna $225 + GreenPath $160 + PayPal $104 + AfterPay $21",type:"fixed"},
+{cat:"🚗 Car + Transport",amt:454,detail:"Loan $263 + insurance $156 + gas $35",type:"fixed"},
+{cat:"🎓 Student Loans",amt:363,detail:"Federal graduated repayment",type:"fixed"},
+{cat:"📱 Subs + Phone",amt:329,detail:"Streaming, tools, Verizon, gym, AAA",type:"fixed"},
+{cat:"🛒 Groceries + Coffee",amt:275,detail:"Costco + weekly grocery + Dunkin",type:"flex",tip:"One Costco trip/mo. Weekly run. Always bring a list."},
+{cat:"🌿 Personal",amt:40,detail:"Personal care, misc",type:"flex"},
+{cat:"🍽 Eating Out",amt:75,detail:"Real meals, not delivery",type:"flex",tip:"1-2 meals out/week. Cook the rest."},
+{cat:"🐱 Furf & Peepsa",amt:40,detail:"Food, litter, treats",type:"flex"},
+{cat:"💰 MOVE FUND",amt:650,detail:"From monthly transfer to savings",type:"save",tip:"Transfer the DAY it hits. $650 x 4 = $2,600."},
+{cat:"🛟 Buffer",amt:300,detail:"From monthly transfer to checking",type:"save",tip:"Overdraft cushion. Unused rolls to move fund."},
+{cat:"⚡ Surprises",amt:77,detail:"Oil, vet, car",type:"flex",tip:"When surprises hit, eating out gets cut first."}
+];
+var totalBudgeted=0;budgetItems.forEach(function(b){totalBudgeted+=b.amt;});
+var totalIncome=5548;
+
+var flexCats=[
+{id:"groceries",name:"🛒 Groceries",budget:275},
+{id:"eating",name:"🍽 Eating Out",budget:75},
+{id:"personal",name:"🌿 Personal",budget:40},
+{id:"cats",name:"🐱 Cats",budget:40},
+{id:"surprise",name:"⚡ Other",budget:77}
+];
+var totalFlexBudget=0;flexCats.forEach(function(c){totalFlexBudget+=c.budget;});
+
+var fixedBills=[
+{n:"🏠 Rent",a:1253},{n:"📦 Affirm (26)",a:862},{n:"🎓 Student Loans",a:363},
+{n:"🚗 Car Loan",a:263},{n:"📦 Klarna",a:225},{n:"💳 GreenPath",a:160},
+{n:"🛡 Car Insurance",a:156},{n:"⚡ Utilities",a:110},{n:"📦 PayPal Pay4",a:104},
+{n:"📋 Renters Ins",a:35},{n:"💪 Planet Fitness",a:25},{n:"📱 Verizon",a:25},
+{n:"📦 AfterPay",a:21},{n:"🚙 AAA",a:10}
+];
+var subsList=[
+{n:"🤖 Claude Pro",a:100},{n:"📺 YouTube TV",a:73},{n:"🍎 Apple",a:26},
+{n:"☁ Google One",a:21},{n:"📺 Hulu",a:20},{n:"📦 Amazon Prime",a:15},
+{n:"📺 Paramount+",a:14},{n:"🎵 Spotify",a:12},{n:"🚕 Uber One",a:10},
+{n:"📦 Amazon Digital",a:6},{n:"🔧 Buildium",a:5},{n:"🖨 Printer",a:2}
+];
+var pay1=[{n:"Rent",a:1253},{n:"Car Loan",a:263},{n:"Student Loans",a:363},{n:"GreenPath",a:160},{n:"Utilities",a:110},{n:"Affirm (1st-14th)",a:430}];
+var pay2=[{n:"Car Insurance",a:156},{n:"Affirm (15th-31st)",a:432},{n:"Klarna",a:225},{n:"PayPal Pay4",a:104},{n:"AfterPay",a:21},{n:"Gym",a:25},{n:"Subscriptions",a:304},{n:"Ins+AAA",a:45}];
+var p1t=0;pay1.forEach(function(b){p1t+=b.a;});
+var p2t=0;pay2.forEach(function(b){p2t+=b.a;});
+
+// =====================================================
+// STATE
+// =====================================================
+var state = {
+  tab: "budget",
+  platF: "All",
+  sortBy: "date",
+  moveSaved: 0,
+  expenses: [],
+  paidMap: {},
+  expAmt: "",
+  expNote: "",
+  expCat: "groceries",
+  sMonth: "2026-04",
+  loaded: false
+};
+
+// =====================================================
+// HELPERS
+// =====================================================
+function fm(n){return(n<0?"-":"")+"$"+Math.abs(Math.round(n)).toLocaleString();}
+function fd(n){return "$"+n.toFixed(2);}
+
+function api(params, cb) {
+  if (SCRIPT_URL === "YOUR_APPS_SCRIPT_URL_HERE") {
+    if (cb) cb();
+    return;
+  }
+  var url = SCRIPT_URL + "?" + Object.keys(params).map(function(k){return k+"="+encodeURIComponent(params[k]);}).join("&");
+  fetch(url).then(function(r){return r.json();}).then(function(d){if(cb)cb(d);}).catch(function(e){console.error(e);setSyncStatus("err");});
+}
+
+function setSyncStatus(s) {
+  var el = document.getElementById("syncStatus");
+  if (!el) return;
+  if (s === "ok") el.innerHTML = '<span class="sync-dot ok"></span>';
+  else if (s === "err") el.innerHTML = '<span class="sync-dot err"></span>';
+  else if (s === "load") el.innerHTML = '<span class="sync-dot load"></span>';
+  else el.innerHTML = '';
+}
+
+function catSpent(cid) {
+  var t = 0;
+  var mExp = state.expenses.filter(function(e){return e.month===state.sMonth;});
+  mExp.forEach(function(e){if(e.cat===cid)t+=e.amt;});
+  return t;
+}
+
+function getPaidCount(lid, total) {
+  var c = 0;
+  for (var m = 1; m <= total; m++) { if (state.paidMap[lid+"-"+m]) c++; }
+  return c;
+}
+
+function getFiltered() {
+  var f = state.platF === "All" ? loans.slice() : loans.filter(function(l){return l.p===state.platF;});
+  if (state.sortBy==="date") f.sort(function(a,b){return a.day-b.day;});
+  else if (state.sortBy==="ends") f.sort(function(a,b){return a.left-b.left;});
+  else if (state.sortBy==="pmt") f.sort(function(a,b){return b.pmt-a.pmt;});
+  else if (state.sortBy==="owed") f.sort(function(a,b){return a.rem-b.rem;});
+  return f;
+}
+
+// =====================================================
+// RENDER
+// =====================================================
+function render() {
+  renderTabs();
+  var c = document.getElementById("content");
+  if (!state.loaded) { c.innerHTML = '<div class="loading">Loading your data...</div>'; return; }
+  if (state.tab === "budget") renderBudget(c);
+  else if (state.tab === "spend") renderSpend(c);
+  else if (state.tab === "payoff") renderPayoff(c);
+  else if (state.tab === "payday") renderPayday(c);
+  else if (state.tab === "move") renderMove(c);
+  else if (state.tab === "bills") renderBills(c);
+}
+
+function renderTabs() {
+  var tabs = [
+    {id:"budget",l:"🎯 Budget"},{id:"spend",l:"📝 Spend"},{id:"payoff",l:"✅ Payoff"},
+    {id:"payday",l:"💰 Payday"},{id:"move",l:"🏡 Move"},{id:"bills",l:"📋 Bills"}
+  ];
+  var h = '';
+  tabs.forEach(function(t){
+    h += '<button class="tab'+(state.tab===t.id?' on':'')+'" onclick="setTab(\''+t.id+'\')">'+t.l+'</button>';
+  });
+  document.getElementById("tabs").innerHTML = h;
+}
+
+function setTab(id) { state.tab = id; render(); }
+
+function bar(v, max, color, height) {
+  var pct = Math.min((v/max)*100,100);
+  var h = height || 8;
+  return '<div class="bar-wrap" style="height:'+h+'px"><div class="bar-fill" style="width:'+pct+'%;background:'+color+';height:'+h+'px"></div></div>';
+}
+
+function card(content, extra) {
+  var cls = "card";
+  var sty = "";
+  if (extra) {
+    if (extra.glow) cls += " glow";
+    if (extra.bg) sty += "background:"+extra.bg+";";
+    if (extra.border) sty += "border-color:"+extra.border+";";
+  }
+  return '<div class="'+cls+'" style="'+sty+'">'+content+'</div>';
+}
+
+function hdr(emoji, title, sub) {
+  return '<div style="margin-bottom:16px"><h2 style="font-size:18px;font-weight:700">'+emoji+' '+title+'</h2>'+(sub?'<p style="font-size:13px;color:var(--td);margin-top:4px">'+sub+'</p>':'')+'</div>';
+}
+
+function tip(text) {
+  return '<div class="tip">💡 '+text+'</div>';
+}
+
+// =====================================================
+// TAB RENDERERS
+// =====================================================
+function renderBudget(c) {
+  var h = '<div class="stack">';
+  h += card('<div style="text-align:center"><div style="font-size:11px;color:var(--td);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:6px">Monthly Income</div><div class="mono" style="font-size:28px;font-weight:700;color:var(--grn)">'+fm(totalIncome)+'</div></div>',{glow:true});
+
+  var bh = hdr('🎯','Monthly Budget','May through August');
+  budgetItems.forEach(function(b){
+    var col = b.type==="fixed"?"var(--tx)":b.type==="save"?"var(--grn)":"var(--org)";
+    var barCol = b.type==="fixed"?"var(--a)":b.type==="save"?"var(--grn)":"var(--org)";
+    bh += '<div style="margin-bottom:14px"><div style="display:flex;justify-content:space-between;margin-bottom:2px"><span style="font-size:14px;font-weight:600">'+b.cat+'</span><span class="mono" style="font-size:15px;font-weight:700;color:'+col+'">'+fm(b.amt)+'</span></div>';
+    bh += '<div style="font-size:11px;color:var(--tm);margin-bottom:4px">'+b.detail+'</div>';
+    bh += bar(b.amt,totalIncome,barCol,6);
+    if(b.tip) bh += tip(b.tip);
+    bh += '</div>';
+  });
+  bh += '<div style="margin-top:20px;padding:14px 16px;background:rgba(103,184,212,.08);border-radius:10px;text-align:center"><div class="mono" style="font-size:24px;font-weight:700;color:var(--grn)">'+fm(totalBudgeted)+' / '+fm(totalIncome)+'</div><div style="font-size:12px;color:var(--grn);margin-top:4px">'+fm(totalIncome-totalBudgeted)+' unassigned</div></div>';
+  h += card(bh);
+
+  var rh = hdr('📏','The Rules','');
+  rh += '<div style="font-size:13px;color:var(--td);line-height:1.9">';
+  rh += '<strong style="color:var(--org)">1. Split your monthly transfer immediately.</strong> $650 savings. $300 checking.<br><br>';
+  rh += '<strong style="color:var(--org)">2. Fixed bills are not decisions.</strong> They come out automatically.<br><br>';
+  rh += '<strong style="color:var(--org)">3. Flex has a ceiling.</strong> Groceries $275. Eating out $75. Personal $40. Gone = gone.<br><br>';
+  rh += '<strong style="color:var(--org)">4. No new BNPL.</strong> Every new loan extends the squeeze.<br><br>';
+  rh += '<strong style="color:var(--org)">5. Hard months are not failure.</strong> Cut eating out first, then personal.<br><br>';
+  rh += '<strong style="color:var(--org)">6. Log spending in the Spend tab.</strong> Takes 5 seconds.</div>';
+  h += card(rh,{bg:"rgba(249,115,22,.05)",border:"var(--org)"});
+
+  h += '</div>';
+  c.innerHTML = h;
+}
+
+function renderSpend(c) {
+  var months=["2026-04","2026-05","2026-06","2026-07","2026-08"];
+  var mL={"2026-04":"Apr","2026-05":"May","2026-06":"Jun","2026-07":"Jul","2026-08":"Aug"};
+  var mExp=state.expenses.filter(function(e){return e.month===state.sMonth;});
+  var totSpent=0;flexCats.forEach(function(cat){totSpent+=catSpent(cat.id);});
+
+  var h='<div class="stack">';
+  // Month pills
+  h+='<div style="display:flex;gap:6px">';
+  months.forEach(function(m){
+    var on=state.sMonth===m;
+    h+='<button style="flex:1;padding:8px 4px;border-radius:12px;border:1px solid '+(on?'var(--org)':'var(--cb)')+';background:'+(on?'var(--org)':'transparent')+';color:'+(on?'#000':'var(--td)')+';font-size:13px;font-weight:700;cursor:pointer;font-family:inherit" onclick="state.sMonth=\''+m+'\';render()">'+mL[m]+'</button>';
+  });
+  h+='</div>';
+
+  // Overview
+  var overCol=totSpent>totalFlexBudget?'var(--red)':'var(--org)';
+  var barCol=totSpent>totalFlexBudget?'var(--red)':'var(--grn)';
+  var remCol=totSpent>totalFlexBudget?'var(--red)':'var(--grn)';
+  var remTxt=totSpent>totalFlexBudget?fm(totSpent-totalFlexBudget)+' over':fm(totalFlexBudget-totSpent)+' left';
+  h+=card('<div style="display:flex;justify-content:space-between;margin-bottom:8px"><div><div style="font-size:11px;color:var(--td);text-transform:uppercase">Spent</div><div class="mono" style="font-size:24px;font-weight:700;color:'+overCol+'">'+fm(totSpent)+'</div></div><div style="text-align:right"><div style="font-size:11px;color:var(--td);text-transform:uppercase">Budget</div><div class="mono" style="font-size:24px;font-weight:700">'+fm(totalFlexBudget)+'</div></div></div>'+bar(totSpent,totalFlexBudget,barCol,12)+'<div style="font-size:12px;color:'+remCol+';margin-top:6px;text-align:center;font-weight:600">'+remTxt+'</div>',{glow:true});
+
+  // Categories
+  var ch=hdr('📊','By Category','');
+  flexCats.forEach(function(cat){
+    var sp=catSpent(cat.id);var ov=sp>cat.budget;var pc=cat.budget>0?Math.round(sp/cat.budget*100):0;
+    var bCol=ov?'var(--red)':pc>80?'var(--yel)':'var(--grn)';
+    ch+='<div style="margin-bottom:14px"><div style="display:flex;justify-content:space-between;margin-bottom:3px"><span style="font-size:13px;font-weight:600">'+cat.name+'</span><span class="mono" style="font-size:13px;font-weight:700;color:'+(ov?'var(--red)':'var(--tx)')+'">'+fm(sp)+' <span style="color:var(--tm);font-weight:400">/ '+fm(cat.budget)+'</span></span></div>'+bar(sp,cat.budget,bCol,6);
+    if(ov) ch+='<div style="font-size:10px;color:var(--red);margin-top:2px">'+fm(sp-cat.budget)+' over</div>';
+    ch+='</div>';
+  });
+  h+=card(ch);
+
+  // Add expense form
+  var fh=hdr('➕','Log Expense','');
+  fh+='<div style="display:flex;gap:8px;margin-bottom:10px"><input type="number" inputmode="decimal" placeholder="Amount" id="expAmt" value="'+state.expAmt+'" oninput="state.expAmt=this.value" style="flex:1"><button class="btn-add" onclick="addExpense()">Add</button></div>';
+  fh+='<input type="text" placeholder="What? (optional)" id="expNote" value="'+(state.expNote||'')+'" oninput="state.expNote=this.value" style="margin-bottom:10px">';
+  fh+='<div style="display:flex;gap:6px;flex-wrap:wrap">';
+  flexCats.forEach(function(cat){
+    var on=state.expCat===cat.id;
+    fh+='<button class="pill'+(on?' on':'')+'" onclick="state.expCat=\''+cat.id+'\';render()">'+cat.name+'</button>';
+  });
+  fh+='</div>';
+  h+=card(fh,{border:"var(--org)"});
+
+  // Expense list
+  if(mExp.length>0){
+    var lh=hdr('📋','Logged ('+mExp.length+')','');
+    mExp.forEach(function(ex){
+      var ci=flexCats.find(function(cat){return cat.id===ex.cat;});
+      lh+='<div class="row"><div><div style="font-size:13px">'+(ex.note||(ci?ci.name:ex.cat))+'</div><div style="font-size:10px;color:var(--tm)">'+(ci?ci.name:'')+'</div></div><div style="display:flex;align-items:center;gap:10px"><span class="mono" style="font-size:14px;font-weight:600;color:var(--org)">'+fd(ex.amt)+'</span><button class="btn-del" onclick="delExpense(\''+ex.id+'\')">x</button></div></div>';
+    });
+    h+=card(lh);
+  }
+
+  h+='</div>';
+  c.innerHTML=h;
+}
+
+function renderPayoff(c) {
+  var doneCnt=0,totPmts=0,totAll=0,totOwed=0;
+  loans.forEach(function(l){
+    var paid=getPaidCount(l.id,l.left);
+    if(paid>=l.left)doneCnt++;
+    totPmts+=paid;totAll+=l.left;
+    totOwed+=Math.max(0,l.rem-paid*l.pmt);
+  });
+  var pctDone=Math.round(totPmts/totAll*100);
+  var filtered=getFiltered();
+
+  var h='<div class="stack">';
+  h+=card('<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;text-align:center"><div><div style="font-size:10px;color:var(--td);text-transform:uppercase">Done</div><div class="mono" style="font-size:22px;font-weight:700;color:'+(doneCnt>0?'var(--grn)':'var(--tx)')+'">'+doneCnt+'/'+loans.length+'</div></div><div><div style="font-size:10px;color:var(--td);text-transform:uppercase">Pmts</div><div class="mono" style="font-size:22px;font-weight:700;color:var(--org)">'+totPmts+'/'+totAll+'</div></div><div><div style="font-size:10px;color:var(--td);text-transform:uppercase">Owed</div><div class="mono" style="font-size:22px;font-weight:700;color:var(--red)">'+fm(Math.max(0,totOwed))+'</div></div></div><div style="margin-top:12px">'+bar(totPmts,totAll,'var(--grn)',12)+'<div style="font-size:11px;color:var(--tm);margin-top:4px;text-align:center">'+pctDone+'% complete</div></div>',{glow:true});
+
+  // Platform filter
+  h+='<div style="display:flex;gap:6px;overflow-x:auto">';
+  ["All","Affirm","Klarna","PayPal","AfterPay","GreenPath"].forEach(function(p){
+    var on=state.platF===p;
+    h+='<button class="pill'+(on?' on':'')+'" onclick="state.platF=\''+p+'\';render()">'+p+'</button>';
+  });
+  h+='</div>';
+
+  // Sort
+  h+='<div style="display:flex;gap:6px;overflow-x:auto">';
+  [{k:"date",l:"📅 Due date"},{k:"ends",l:"🏁 Ending soon"},{k:"pmt",l:"💸 Biggest"},{k:"owed",l:"🎯 Least owed"}].forEach(function(s){
+    var on=state.sortBy===s.k;
+    h+='<button class="pill'+(on?' on-a':'')+'" onclick="state.sortBy=\''+s.k+'\';render()">'+s.l+'</button>';
+  });
+  h+='</div>';
+
+  // Loan cards
+  filtered.forEach(function(loan){
+    var paid=getPaidCount(loan.id,loan.left);
+    var done=paid>=loan.left;
+    var leftAmt=Math.max(0,loan.rem-paid*loan.pmt);
+
+    var lh='<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px"><div><div style="font-size:14px;font-weight:600;color:'+(done?'var(--grn)':'var(--tx)')+';text-decoration:'+(done?'line-through':'none')+'">'+loan.name+'</div><div style="font-size:11px;color:var(--tm)">'+loan.p+' - '+fd(loan.pmt)+'/mo - '+loan.day+'th - ends '+loan.ends+'</div></div><div class="mono" style="font-size:14px;font-weight:700;color:'+(done?'var(--grn)':'var(--tx)')+'">'+(done?'DONE ✓':fm(leftAmt))+'</div></div>';
+    lh+=bar(paid,loan.left,done?'var(--grn)':'var(--org)',6);
+    lh+='<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:8px">';
+    for(var i=1;i<=loan.left;i++){
+      var isPaid=state.paidMap[loan.id+"-"+i];
+      lh+='<button class="chk'+(isPaid?' on':'')+'" onclick="togglePaid(\''+loan.id+'\','+i+')">'+(isPaid?'✓':i)+'</button>';
+    }
+    lh+='</div>';
+    if(loan.hasInt) lh+='<div style="font-size:10px;color:var(--yel);margin-top:6px">⚠ Accruing interest</div>';
+
+    var extra=done?{bg:"rgba(34,197,94,.06)",border:"rgba(34,197,94,.3)"}:{};
+    h+=card(lh,extra);
+  });
+
+  h+='</div>';
+  c.innerHTML=h;
+}
+
+function renderPayday(c) {
+  var h='<div class="stack">';
+  [{n:"Paycheck 1",s:"1st of month",b:pay1,tot:p1t,t:"Covers half groceries, gas, surprise buffer."},{n:"Paycheck 2",s:"15th of month",b:pay2,tot:p2t,t:"Covers other half groceries, eating out, personal, cats."}].forEach(function(p){
+    var ph=hdr('💰',p.n+' (~$2,249)',p.s);
+    p.b.forEach(function(b){ph+='<div class="row"><span style="color:var(--td)">'+b.n+'</span><span class="mono" style="font-weight:600">'+fm(b.a)+'</span></div>';});
+    ph+='<div style="display:flex;justify-content:space-between;padding:12px 0 4px;font-weight:700"><span>Bills</span><span class="mono" style="color:var(--red)">'+fm(p.tot)+'</span></div>';
+    ph+='<div style="display:flex;justify-content:space-between;padding:4px 0"><span style="color:var(--td)">Left</span><span class="mono" style="color:var(--grn);font-weight:700">'+fm(2249-p.tot)+'</span></div>';
+    ph+=tip(p.t);
+    h+=card(ph);
+  });
+
+  var th=hdr('💰','Monthly $1,000 Transfer','Split immediately');
+  th+='<div style="display:flex;gap:12px;margin-top:8px"><div style="flex:1;padding:16px;background:rgba(34,197,94,.08);border-radius:12px;text-align:center"><div style="font-size:11px;color:var(--td)">MOVE FUND</div><div class="mono" style="font-size:24px;font-weight:700;color:var(--grn)">$650</div><div style="font-size:10px;color:var(--grn)">Savings</div></div><div style="flex:1;padding:16px;background:rgba(103,184,212,.08);border-radius:12px;text-align:center"><div style="font-size:11px;color:var(--td)">BUFFER</div><div class="mono" style="font-size:24px;font-weight:700;color:var(--a)">$300</div><div style="font-size:10px;color:var(--al)">Checking</div></div></div>';
+  h+=card(th);
+
+  h+='</div>';
+  c.innerHTML=h;
+}
+
+function renderMove(c) {
+  var h='<div class="stack">';
+  var mh=hdr('🏡','Move Fund','$650/mo to $2,600 by August');
+  mh+='<div style="margin:20px 0">'+bar(state.moveSaved,2800,'var(--grn)',16)+'<div style="display:flex;justify-content:space-between;margin-top:6px"><span style="font-size:12px;color:var(--tm)">'+fm(state.moveSaved)+'</span><span style="font-size:12px;color:var(--tm)">'+fm(2800)+'</span></div></div>';
+  mh+='<div style="display:flex;gap:8px;flex-wrap:wrap">';
+  [0,650,1300,1950,2600,2800].forEach(function(v){
+    var on=state.moveSaved===v;
+    mh+='<button style="padding:6px 14px;border-radius:20px;border:1px solid '+(on?'var(--org)':'var(--cb)')+';background:'+(on?'var(--org)':'transparent')+';color:'+(on?'#000':'var(--td)')+';font-size:12px;font-weight:600;cursor:pointer;font-family:inherit" onclick="setMoveSaved('+v+')">'+(v===0?'Start':fm(v))+'</button>';
+  });
+  mh+='</div>';
+  h+=card(mh,{glow:true});
+
+  var tlh=hdr('📅','Timeline','');
+  [{m:"May",c:650,n:"Set up system"},{m:"Jun",c:1300,n:"Halfway"},{m:"Jul",c:1950,n:"Plan logistics"},{m:"Aug",c:2600,n:"Move!"}].forEach(function(x){
+    var done=state.moveSaved>=x.c;
+    tlh+='<div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--cb)"><div style="width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;background:'+(done?'var(--grn)':'rgba(249,115,22,.1)')+';color:'+(done?'#000':'var(--org)')+';font-size:12px;font-weight:700">'+(done?'✓':x.m)+'</div><div><div style="font-size:14px;font-weight:600">'+x.m+' - '+fm(x.c)+'</div><div style="font-size:11px;color:var(--tm)">'+x.n+'</div></div></div>';
+  });
+  h+=card(tlh);
+
+  h+=card(hdr('⭐','After the Move','')+'<div style="font-size:13px;color:var(--td);line-height:1.7">Half of Vinnys $1,750: <strong style="color:var(--grn)">$875/mo</strong> vs $1,363 now = <strong style="color:var(--grn)">$488/mo freed up</strong>.</div>');
+
+  h+='</div>';
+  c.innerHTML=h;
+}
+
+function renderBills(c) {
+  var h='<div class="stack">';
+  var ft=0;fixedBills.forEach(function(b){ft+=b.a;});
+  var bh=hdr('📌','Fixed Bills',fm(ft)+'/mo');
+  fixedBills.forEach(function(b){bh+='<div class="row"><span>'+b.n+'</span><span class="mono" style="font-weight:600">'+fm(b.a)+'</span></div>';});
+  h+=card(bh);
+
+  var st=0;subsList.forEach(function(b){st+=b.a;});
+  var sh=hdr('🔄','Subscriptions',fm(st)+'/mo');
+  subsList.forEach(function(b){sh+='<div class="row"><span>'+b.n+'</span><span class="mono" style="font-weight:600;color:var(--td)">'+fm(b.a)+'</span></div>';});
+  sh+=tip('Hulu + Paramount+ + YouTube TV = $107/mo. Could you pause one?');
+  h+=card(sh);
+
+  h+='</div>';
+  c.innerHTML=h;
+}
+
+// =====================================================
+// ACTIONS
+// =====================================================
+function addExpense() {
+  var a = parseFloat(state.expAmt);
+  if (!a || a <= 0) return;
+  var id = String(Date.now());
+  var exp = {id:id, amt:a, note:state.expNote||"", cat:state.expCat, month:state.sMonth};
+  state.expenses.push(exp);
+  state.expAmt = "";
+  state.expNote = "";
+  render();
+  api({action:"saveExpense",id:id,amount:a,note:exp.note,category:exp.cat,month:exp.month}, function(){setSyncStatus("ok");});
+}
+
+function delExpense(id) {
+  state.expenses = state.expenses.filter(function(e){return e.id !== id;});
+  render();
+  api({action:"deleteExpense",id:id}, function(){setSyncStatus("ok");});
+}
+
+function togglePaid(loanId, month) {
+  var key = loanId+"-"+month;
+  var newVal = !state.paidMap[key];
+  state.paidMap[key] = newVal;
+  render();
+  api({action:"togglePaid",key:key,value:String(newVal)}, function(){setSyncStatus("ok");});
+}
+
+function setMoveSaved(v) {
+  state.moveSaved = v;
+  render();
+  api({action:"setMoveSaved",value:v}, function(){setSyncStatus("ok");});
+}
+
+// =====================================================
+// INIT
+// =====================================================
+function init() {
+  setSyncStatus("load");
+  if (SCRIPT_URL === "YOUR_APPS_SCRIPT_URL_HERE") {
+    // No backend configured, run locally
+    state.loaded = true;
+    render();
+    return;
+  }
+  api({action:"load"}, function(data) {
+    if (data && !data.error) {
+      state.expenses = data.expenses || [];
+      state.paidMap = data.paidMap || {};
+      state.moveSaved = data.moveSaved || 0;
+    }
+    state.loaded = true;
+    setSyncStatus("ok");
+    render();
+  });
+}
+
+init();
+</script>
+</body>
+</html>
